@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ViscoPulse | Smart Test Tool</title>
+    <link href="bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #080808; color: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
+        .brand-title { font-size: 3.5rem; font-weight: 900; letter-spacing: -2px; margin-bottom: 0; }
+        .sub-heading { color: #00e676; font-size: 0.9rem; font-weight: 700; letter-spacing: 5px; text-transform: uppercase; }
+        .status-badge { padding: 5px 15px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; border: 1px solid #333; display: inline-flex; align-items: center; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+        .dot-offline { background-color: #ff5252; box-shadow: 0 0 10px #ff5252; }
+        .dot-online { background-color: #00e676; box-shadow: 0 0 10px #00e676; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .status-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 1.5rem; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        .value-display { font-family: 'Consolas', monospace; font-weight: 700; color: #00e676; }
+        .nav-pills .nav-link { color: #888; background: #1a1a1a; margin: 0 10px; border: 1px solid #333; }
+        .nav-pills .nav-link.active { background-color: #00e676; color: #000; font-weight: bold; }
+        .form-select, .form-control { background-color: #000 !important; border: 1px solid #333 !important; color: #00e676 !important; }
+        .btn-restart { border: 1px solid #ff5252; color: #ff5252; font-weight: bold; text-transform: uppercase; font-size: 0.8rem; }
+        .debug-window { background-color: #050505; color: #00ff00; font-family: 'Consolas', monospace; height: 140px; overflow-y: auto; font-size: 0.8rem; padding: 15px; border: 1px solid #222; border-top: none; }
+    </style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="brand-title">VISCO <span style="color:#00e676">PULSE</span></h1>
+        <p class="sub-heading">Smart Test Tool</p>
+        <div id="connectionStatus" class="status-badge mt-2">
+            <span id="statusDot" class="dot dot-offline"></span>
+            <span id="statusText">DEVICE DISCONNECTED</span>
+        </div>
+    </div>
+
+    <ul class="nav nav-pills justify-content-center mb-4">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#oil">Oil Condition Test</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#suspension">Suspension Test</button></li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="oil">
+            <div class="row justify-content-center mb-4">
+                <div class="col-12 col-lg-10">
+                    <div class="status-card">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-3">
+                                <label class="small text-secondary fw-bold d-block mb-1">BRAND</label>
+                                <select id="oilBrand" class="form-select" onchange="updateASTM()">
+                                    <option value="none">Select Brand</option>
+                                    <option value="toyota">TOYOTA</option>
+                                    <option value="caltex">CALTEX</option>
+                                    <option value="shell">SHELL</option>
+                                    <option value="mobil">MOBIL</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small text-secondary fw-bold d-block mb-1">GRADE</label>
+                                <select id="oilGrade" class="form-select" onchange="updateASTM()">
+                                    <option value="none">Select Grade</option>
+                                    <option value="0w20">0W-20</option>
+                                    <option value="5w30">5W-30</option>
+                                    
+                                </select>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <div class="p-2 border border-secondary rounded bg-black">
+                                    <small class="text-secondary d-block">CH-A K: <span id="constA" class="text-white">--</span> | CH-B K: <span id="constB" class="text-white">--</span></small>
+                                    <small class="text-secondary">ASTM Targets:</small> <span id="target40" class="text-success fw-bold">--</span> | <span id="target100" class="text-success fw-bold">--</span>
+                                    <small class="ms-2 text-secondary">Fresh Diel:</small> <span id="targetDiel" class="text-warning fw-bold">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row justify-content-center g-4 text-center">
+                <div class="col-12 col-lg-10">
+                    <div class="status-card mb-4">
+                        <h2 class="display-2 fw-bold my-2" id="mainState">IDLE</h2>
+                        <div class="d-flex justify-content-center gap-2 mt-4">
+                            <input type="text" id="espIp" class="form-control w-25" placeholder="192.168.1.XX">
+                            <button class="btn btn-outline-success fw-bold px-4" onclick="initConnect()">CONNECT</button>
+                            <button class="btn btn-restart px-4" onclick="restartTest()">RESTART TEST</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4"><div class="status-card"><h6>CHAMBER A</h6><div class="value-display h1" id="ui-tempA">--.-°C</div></div></div>
+                <div class="col-md-4"><div class="status-card"><h6>CHAMBER B</h6><div class="value-display h1" id="ui-tempB">--.-°C</div></div></div>
+                <div class="col-md-4"><div class="status-card"><h6>DIELECTRIC</h6><div class="value-display h1" id="ui-diel">----</div></div></div>
+                <div class="col-md-5"><div class="status-card"><h6>FLOW TIME A</h6><div class="value-display h2" id="ui-timeA">0000</div></div></div>
+                <div class="col-md-5"><div class="status-card"><h6>FLOW TIME B</h6><div class="value-display h2" id="ui-timeB">0000</div></div></div>
+            </div>
+        </div>
+        
+        <div class="tab-pane fade text-center" id="suspension">
+             <div class="status-card py-5">
+                <h3 class="fw-bold mb-3">Suspension Analysis</h3>
+                <a href="#" class="btn btn-outline-success btn-lg px-5">GO TO SUSPENSION TEST</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-5 pt-5">
+        <div class="bg-dark p-2 rounded-top border border-secondary text-secondary small fw-bold">RAW DATA BROADCAST</div>
+        <div id="debugLog" class="debug-window">STANDBY: Connect to ESP32...</div>
+    </div>
+</div>
+
+<script src="oil_db.js"></script>
+<script src="script.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

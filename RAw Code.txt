@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViscoPulse | Engineering Diagnostic Suite</title>
+    </head>
+<body>
+
+    <header>
+        <div class="logo">VISCOPULSE</div>
+        <nav>
+            <button class="tab-btn active" onclick="switchTab('oil')">Oil Condition Test</button>
+            <button class="tab-btn" onclick="switchTab('suspension')">Suspension Test</button>
+        </nav>
+        <div id="connectionStatus" class="conn-tag disconnected">DISCONNECTED</div>
+    </header>
+
+    <main class="center-content">
+        
+        <section id="stateDashboard">
+            <div class="ip-config">
+                <input type="text" id="espIp" placeholder="ESP32 IP (e.g. 192.168.1.15)">
+                <button onclick="initConnect()">Connect Device</button>
+            </div>
+            <div id="statusBanner" class="status-box status-0">
+                <span class="label">SYSTEM STATUS</span>
+                <h2 id="currentStatusText">IDLE - WAITING FOR SETUP</h2>
+            </div>
+        </section>
+
+        <section id="oilContent" class="tab-content">
+            <div class="dashboard-grid">
+                <div class="card">Temperature A (40°C)</div>
+                <div class="card">Temperature B (100°C)</div>
+            </div>
+        </section>
+
+        <section id="suspensionContent" class="tab-content" style="display:none;">
+            <div class="coming-soon">
+                <h2>Suspension Analysis Module</h2>
+                <p>Hardware Integration Pending...</p>
+            </div>
+        </section>
+
+    </main>
+
+    <footer id="debugWindow">
+        <div class="debug-header">
+            <span>RAW ESP32 DATA STREAM</span>
+            <button onclick="clearDebug()">Clear</button>
+        </div>
+        <div id="rawInput">Waiting for data...</div>
+    </footer>
+
+    </body>
+</html>
