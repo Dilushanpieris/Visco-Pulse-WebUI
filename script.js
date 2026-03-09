@@ -1,6 +1,6 @@
 /**
  * VISCOPULSE | Smart Test Tool
- * Master Logic Script
+ * Master Logic Script - Reporting Edition
  */
 
 let socket = null;
@@ -12,7 +12,6 @@ const statusMap = ["IDLE", "HEATING", "READY", "TESTING", "FINISHED"];
 function setStatusIndicator(isConnected, message = "") {
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');
-    
     if (isConnected) {
         dot.className = "dot dot-online";
         text.innerText = message || "DEVICE CONNECTED";
@@ -25,89 +24,56 @@ function setStatusIndicator(isConnected, message = "") {
 function initConnect() {
     const ipField = document.getElementById('espIp');
     const ip = ipField.value.trim();
-    
-    if (!ip) {
-        alert("Please enter a valid ESP32 IP Address.");
-        return;
-    }
+    if (!ip) return alert("Enter ESP32 IP");
 
     if (socket) {
-        socket.onopen = null;
-        socket.onclose = null;
-        socket.onmessage = null;
-        socket.onerror = null;
-        socket.close();
+        socket.onopen = null; socket.onclose = null;
+        socket.onmessage = null; socket.close();
     }
     
-    logDebug(`Initiating connection to ws://${ip}/ws ...`);
     socket = new WebSocket(`ws://${ip}/ws`);
 
     socket.onopen = () => {
         clearInterval(reconnectTimer);
         reconnectTimer = null;
-        setStatusIndicator(true, "DEVICE CONNECTED");
-        logDebug("Connection established successfully.");
+        setStatusIndicator(true);
+        logDebug("Hardware Link Established.");
     };
 
     socket.onclose = () => {
-        setStatusIndicator(false, "CONNECTION LOST - RETRYING...");
+        setStatusIndicator(false, "LINK LOST - RETRYING...");
         if (!reconnectTimer) {
-            reconnectTimer = setInterval(() => {
-                logDebug("Attempting auto-reconnect...");
-                initConnect();
-            }, 2000);
+            reconnectTimer = setInterval(() => initConnect(), 2000);
         }
-    };
-
-    socket.onerror = () => {
-        socket.close();
     };
 
     socket.onmessage = (event) => {
         const dot = document.getElementById('statusDot');
-        if (dot.classList.contains('dot-offline')) {
-            setStatusIndicator(true); 
-        }
-
+        if (dot.classList.contains('dot-offline')) setStatusIndicator(true);
         try {
             const data = JSON.parse(event.data);
             updateUI(data);
-        } catch (e) {
-            console.error("Malformed JSON received", e);
-        }
+        } catch (e) { console.error("JSON Error"); }
     };
 }
 
-// --- 2. DATA PROCESSING & UI UPDATES ---
+// --- 2. DATA PROCESSING ---
 
 function updateUI(data) {
     const stateLabel = document.getElementById('mainState');
-    const statusText = statusMap[data.status] || "UNKNOWN";
-    stateLabel.innerText = statusText;
-
-    if (data.status === 2) {
-        stateLabel.style.color = "#00e676"; 
-    } else if (data.status === 1) {
-        stateLabel.style.color = "#ff9100"; 
-    } else {
-        stateLabel.style.color = "#ffffff";
-    }
+    stateLabel.innerText = statusMap[data.status] || "UNKNOWN";
+    stateLabel.style.color = (data.status === 2) ? "#00e676" : (data.status === 1) ? "#ff9100" : "#ffffff";
 
     document.getElementById('ui-tempA').innerText = data.tempA.toFixed(1) + "°C";
     document.getElementById('ui-tempB').innerText = data.tempB.toFixed(1) + "°C";
     document.getElementById('ui-diel').innerText = data.diel;
     document.getElementById('ui-timeA').innerText = data.tA;
     document.getElementById('ui-timeB').innerText = data.tB;
-
-    if (data.status === 4) {
-        logDebug("Test Result Captured: " + JSON.stringify(data));
-    }
 }
 
 function updateASTM() {
     const brand = document.getElementById('oilBrand').value;
     const grade = document.getElementById('oilGrade').value;
-    
     if (VISCOPULSE_CONFIG.brands[brand] && VISCOPULSE_CONFIG.brands[brand][grade]) {
         const d = VISCOPULSE_CONFIG.brands[brand][grade];
         document.getElementById('target40').innerText = d.v40.toFixed(1) + " cSt";
@@ -115,45 +81,72 @@ function updateASTM() {
         document.getElementById('targetDiel').innerText = d.diel_fresh;
         document.getElementById('constA').innerText = VISCOPULSE_CONFIG.constants.chamber_A_K;
         document.getElementById('constB').innerText = VISCOPULSE_CONFIG.constants.chamber_B_K;
-        logDebug(`Targets updated for ${brand.toUpperCase()} ${grade.toUpperCase()}`);
-    } else {
-        document.getElementById('target40').innerText = "--";
-        document.getElementById('target100').innerText = "--";
-        document.getElementById('targetDiel').innerText = "--";
     }
 }
 
-// --- 3. TEST CONTROLS & REPORTING ---
+// --- 3. MATH & REPORTING ---
 
-function restartTest() {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send("restart");
-        logDebug("RESTART command sent to ESP32.");
-    }
-
-    document.getElementById('ui-timeA').innerText = "0000";
-    document.getElementById('ui-timeB').innerText = "0000";
-    document.getElementById('mainState').innerText = "REBOOTING...";
-    document.getElementById('mainState').style.color = "#ffffff";
-    setStatusIndicator(false, "HARDWARE REBOOTING...");
-}
-
-/**
- * Triggered by the Generate Report Button
- */
 function generateReport() {
     const plate = document.getElementById('plateNumber').value.trim();
-    if (!plate) {
-        alert("Enter Plate Number first.");
+    const brand = document.getElementById('oilBrand').value;
+    const grade = document.getElementById('oilGrade').value;
+
+    if (!plate || brand === "none" || grade === "none") {
+        alert("Complete Vehicle Info and Test Selection first.");
         return;
     }
-    logDebug("Report generation initiated for: " + plate);
-    // Future logic goes here
+
+    // Capture Data
+    const tA = parseFloat(document.getElementById('ui-timeA').innerText) / 1000; // Convert ms to s
+    const tB = parseFloat(document.getElementById('ui-timeB').innerText) / 1000;
+    const kA = VISCOPULSE_CONFIG.constants.chamber_A_K;
+    const kB = VISCOPULSE_CONFIG.constants.chamber_B_K;
+
+    // Kinematic Viscosity Calculation: V = K * t
+    const viscA_cst = kA * tA; 
+    const viscB_cst = kB * tB;
+    const viscA_si = viscA_cst * 1e-6; // cSt to m^2/s
+    const viscB_si = viscB_cst * 1e-6;
+
+    // Update Report UI
+    document.getElementById('rep-date').innerText = new Date().toLocaleString();
+    document.getElementById('rep-plate').innerText = plate;
+    document.getElementById('rep-grade').innerText = brand.toUpperCase() + " " + grade.toUpperCase();
+    document.getElementById('rep-ref').innerText = document.getElementById('target40').innerText + " / " + document.getElementById('target100').innerText + " (ASTM D445)";
+    document.getElementById('rep-diel-ref').innerText = document.getElementById('targetDiel').innerText;
+    document.getElementById('rep-ka').innerText = kA;
+    document.getElementById('rep-kb').innerText = kB;
+    
+    document.getElementById('rep-ta').innerText = document.getElementById('ui-timeA').innerText + " ms";
+    document.getElementById('rep-tb').innerText = document.getElementById('ui-timeB').innerText + " ms";
+    document.getElementById('rep-diel-m').innerText = document.getElementById('ui-diel').innerText;
+
+    document.getElementById('rep-v40-cst').innerText = viscA_cst.toFixed(3) + " cSt (mm²/s)";
+    document.getElementById('rep-v40-si').innerText = viscA_si.toExponential(4) + " m²/s";
+    document.getElementById('rep-v100-cst').innerText = viscB_cst.toFixed(3) + " cSt (mm²/s)";
+    document.getElementById('rep-v100-si').innerText = viscB_si.toExponential(4) + " m²/s";
+
+    document.getElementById('reportSection').classList.remove('d-none');
+    window.scrollTo(0, document.body.scrollHeight);
+    logDebug("Report Generated for " + plate);
+}
+
+function printReport() {
+    window.print();
+}
+
+function restartTest() {
+    if (socket && socket.readyState === WebSocket.OPEN) socket.send("restart");
+    document.getElementById('reportSection').classList.add('d-none');
+    document.getElementById('ui-timeA').innerText = "0000";
+    document.getElementById('ui-timeB').innerText = "0000";
+    document.getElementById('plateNumber').value = "";
+    document.getElementById('mainState').innerText = "IDLE";
+    logDebug("System Reset.");
 }
 
 function logDebug(msg) {
     const log = document.getElementById('debugLog');
-    const time = new Date().toLocaleTimeString();
-    log.innerHTML += `<div><span style="color:#555">[${time}]</span> ${msg}</div>`;
+    log.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
     log.scrollTop = log.scrollHeight;
 }
