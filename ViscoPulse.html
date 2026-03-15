@@ -2,13 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ViscoPulse | Smart Test Tool</title>
-    <link href="bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>ViscoPulse | Smart Controller</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* --- VISCOPULSE ULTIMATE DARK MODE --- */
         body { background-color: #080808; color: #f0f0f0; font-family: 'Segoe UI', sans-serif; }
         .brand-title { font-size: 3.5rem; font-weight: 900; letter-spacing: -2px; }
-        .sub-heading { color: #00e676; font-size: 0.9rem; font-weight: 700; letter-spacing: 5px; text-transform: uppercase; }
         .status-badge { padding: 5px 15px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; border: 1px solid #333; display: inline-flex; align-items: center; }
         .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
         .dot-offline { background-color: #ff5252; box-shadow: 0 0 10px #ff5252; }
@@ -16,32 +14,12 @@
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         .status-card { background: #111; border: 1px solid #222; border-radius: 15px; padding: 1.5rem; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
         .value-display { font-family: 'Consolas', monospace; font-weight: 700; color: #00e676; }
-        .nav-pills .nav-link { color: #888; background: #1a1a1a; margin: 0 10px; border: 1px solid #333; }
-        .nav-pills .nav-link.active { background-color: #00e676; color: #000; font-weight: bold; }
         .form-select, .form-control { background-color: #000 !important; border: 1px solid #333 !important; color: #00e676 !important; }
-        .btn-restart { border: 1px solid #ff5252; color: #ff5252; font-weight: bold; text-transform: uppercase; }
+        .btn-restart { border: 1px solid #ff5252; color: #ff5252; font-weight: bold; }
         .btn-generate { background-color: #00e676; color: #000; font-weight: bold; border: none; }
-        .debug-window { background-color: #050505; color: #00ff00; font-family: 'Consolas', monospace; height: 120px; overflow-y: auto; font-size: 0.8rem; padding: 15px; border: 1px solid #222; }
-        
-        /* --- HIGH-QUALITY PRINT STYLING --- */
-        @media print {
-            body { 
-                background-color: #080808 !important; 
-                color: #f0f0f0 !important; 
-                -webkit-print-color-adjust: exact; /* FORCES CHROME TO PRINT COLORS */
-                print-color-adjust: exact;
-            }
-            .no-print, .status-badge, .nav, .debug-window, .btn-restart, .btn-outline-success { display: none !important; }
-            .status-card { 
-                background-color: #111 !important; 
-                border: 1px solid #222 !important; 
-                box-shadow: none !important;
-            }
-            .text-success { color: #00e676 !important; }
-            .text-warning { color: #ffc107 !important; }
-            .table-dark { background-color: #212529 !important; color: white !important; }
-            #reportSection { display: block !important; width: 100%; }
-        }
+        .progress { height: 12px; background-color: #000; border: 1px solid #333; }
+        .debug-window { background-color: #050505; color: #00ff00; font-family: 'Consolas', monospace; height: 100px; overflow-y: auto; font-size: 0.8rem; padding: 10px; border: 1px solid #222; }
+        @media print { .no-print { display: none !important; } #reportSection { display: block !important; } }
     </style>
 </head>
 <body>
@@ -49,112 +27,40 @@
 <div class="container py-5">
     <div class="text-center mb-5 no-print">
         <h1 class="brand-title">VISCO <span style="color:#00e676">PULSE</span></h1>
-        <p class="sub-heading">Smart Test Tool</p>
         <div id="connectionStatus" class="status-badge mt-2">
             <span id="statusDot" class="dot dot-offline"></span>
             <span id="statusText">DEVICE DISCONNECTED</span>
         </div>
     </div>
 
-    <ul class="nav nav-pills justify-content-center mb-4 no-print">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#oil">Oil Condition Test</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#suspension">Suspension Test</button></li>
-    </ul>
-
-    <div class="tab-content">
-        <div class="tab-pane fade show active" id="oil">
-            <div class="row justify-content-center mb-4 no-print">
-                <div class="col-12 col-lg-10">
-                    <div class="status-card">
-                        <div class="row g-3 align-items-center">
-                            <div class="col-md-3"><label class="small text-secondary fw-bold">BRAND</label>
-                                <select id="oilBrand" class="form-select" onchange="updateASTM()"><option value="none">Brand</option><option value="toyota">TOYOTA</option><option value="caltex">CALTEX</option><option value="shell">SHELL</option></select>
-                            </div>
-                            <div class="col-md-3"><label class="small text-secondary fw-bold">GRADE</label>
-                                <select id="oilGrade" class="form-select" onchange="updateASTM()"><option value="none">Grade</option><option value="0w20">0W-20</option><option value="5w30">5W-30</option></select>
-                            </div>
-                            <div class="col-md-6 text-end"><div class="p-2 border border-secondary rounded bg-black">
-                                <small class="text-secondary">CH K: <span id="constA">--</span> | <span id="constB">--</span></small><br>
-                                <small class="text-secondary">ASTM Targets:</small> <span id="target40" class="text-success fw-bold">--</span> | <span id="target100" class="text-success fw-bold">--</span>
-                                <small class="ms-2 text-secondary">Fresh Diel:</small> <span id="targetDiel" class="text-warning fw-bold">--</span>
-                            </div></div>
-                        </div>
+    <div class="row justify-content-center mb-4 no-print">
+        <div class="col-12 col-lg-10">
+            <div class="status-card">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-3">
+                        <label class="small text-secondary fw-bold">BRAND</label>
+                        <select id="oilBrand" class="form-select" onchange="updateASTM()">
+                            <option value="none">Brand</option>
+                            <option value="caltex">CALTEX</option>
+                            <option value="toyota">TOYOTA</option>
+                            <option value="shell">SHELL</option>
+                            <option value="mobil">MOBIL</option>
+                        </select>
                     </div>
-                </div>
-            </div>
-
-            <div class="row justify-content-center g-4 text-center no-print">
-                <div class="col-12 col-lg-10">
-                    <div class="status-card mb-4">
-                        <h2 class="display-2 fw-bold" id="mainState">IDLE</h2>
-                        <div class="d-flex justify-content-center gap-2 mt-4">
-                            <input type="text" id="espIp" class="form-control w-25" placeholder="ESP IP">
-                            <button class="btn btn-outline-success fw-bold px-4" onclick="initConnect()">CONNECT</button>
-                            <button class="btn btn-restart px-4" onclick="restartTest()">RESTART TEST</button>
-                        </div>
+                    <div class="col-md-3">
+                        <label class="small text-secondary fw-bold">GRADE</label>
+                        <select id="oilGrade" class="form-select" onchange="updateASTM()">
+                            <option value="none">Grade</option>
+                            <option value="15w40">15W-40</option>
+                            <option value="0w20">0W-20</option>
+                            <option value="5w30">5W-30</option>
+                        </select>
                     </div>
-                </div>
-                <div class="col-md-4"><div class="status-card"><h6>CHAMBER A</h6><div class="value-display h1" id="ui-tempA">--.-°C</div></div></div>
-                <div class="col-md-4"><div class="status-card"><h6>CHAMBER B</h6><div class="value-display h1" id="ui-tempB">--.-°C</div></div></div>
-                <div class="col-md-4"><div class="status-card"><h6>DIELECTRIC</h6><div class="value-display h1" id="ui-diel">----</div></div></div>
-                <div class="col-md-5"><div class="status-card"><h6>TIME A</h6><div class="value-display h2" id="ui-timeA">0000</div></div></div>
-                <div class="col-md-5"><div class="status-card"><h6>TIME B</h6><div class="value-display h2" id="ui-timeB">0000</div></div></div>
-            </div>
-
-            <div class="row justify-content-center mt-4 no-print">
-                <div class="col-12 col-lg-10">
-                    <div class="status-card border-success">
-                        <div class="row align-items-end">
-                            <div class="col-md-6"><label class="small text-success fw-bold">VEHICLE PLATE NUMBER</label><input type="text" id="plateNumber" class="form-control" placeholder="WP ABC-1234"></div>
-                            <div class="col-md-6"><button class="btn btn-generate w-100 py-2" onclick="generateReport()">GENERATE REPORT</button></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="reportSection" class="row justify-content-center mt-5 d-none">
-                <div class="col-12 col-lg-10">
-                    <div class="status-card bg-black border-success p-5" style="border: 2px solid #00e676 !important;">
-                        <div class="text-center mb-4">
-                            <h2 class="fw-bold text-success" style="color:#00e676 !important;">VISCOPULSE ANALYSIS REPORT</h2>
-                            <p class="text-secondary">University of Sri Jayewardenepura | Beta Test Release</p>
-                        </div>
-                        <hr class="border-secondary">
-                        <div class="row mb-4">
-                            <div class="col-6"><small class="text-secondary">Date/Time:</small> <div id="rep-date">--</div></div>
-                            <div class="col-6 text-end"><small class="text-secondary">Plate Number:</small> <div id="rep-plate" class="fw-bold fs-4 text-success" style="color:#00e676 !important;">--</div></div>
-                        </div>
-                        <table class="table table-dark table-bordered">
-                            <thead><tr><th colspan="2" class="text-center">Input Configuration & Standards</th></tr></thead>
-                            <tbody>
-                                <tr><td>Selected Oil Grade</td><td id="rep-grade" class="fw-bold">--</td></tr>
-                                <tr><td>ASTM D445 Standard (40°C / 100°C)</td><td id="rep-ref">--</td></tr>
-                                <tr><td>Fresh Dielectric Baseline</td><td id="rep-diel-ref">--</td></tr>
-                                <tr><td>Viscometer Constants (K)</td><td>A: <span id="rep-ka">--</span> | B: <span id="rep-kb">--</span></td></tr>
-                            </tbody>
-                        </table>
-                        <table class="table table-dark table-bordered">
-                            <thead><tr><th colspan="2" class="text-center">Measured Raw Data</th></tr></thead>
-                            <tbody>
-                                <tr><td>Flow Time A (at 40°C)</td><td id="rep-ta">--</td></tr>
-                                <tr><td>Flow Time B (at 100°C)</td><td id="rep-tb">--</td></tr>
-                                <tr><td>Measured Dielectric</td><td id="rep-diel-m">--</td></tr>
-                            </tbody>
-                        </table>
-                        <div class="row g-3">
-                            <div class="col-md-6 text-center border border-secondary p-3">
-                                <small class="text-secondary">Calculated Kinematic Viscosity (40°C)</small>
-                                <h4 id="rep-v40-cst" class="text-success fw-bold" style="color:#00e676 !important;">--</h4>
-                                <small id="rep-v40-si" class="text-secondary small">--</small>
-                            </div>
-                            <div class="col-md-6 text-center border border-secondary p-3">
-                                <small class="text-secondary">Calculated Kinematic Viscosity (100°C)</small>
-                                <h4 id="rep-v100-cst" class="text-success fw-bold" style="color:#00e676 !important;">--</h4>
-                                <small id="rep-v100-si" class="text-secondary small">--</small>
-                            </div>
-                        </div>
-                        <div class="text-center mt-5 no-print">
-                            <button class="btn btn-outline-success px-5" onclick="printReport()">PRINT REPORT</button>
+                    <div class="col-md-6 text-end">
+                        <div class="p-2 border border-secondary rounded bg-black">
+                            <small class="text-secondary">K-CONST: <span id="constA">--</span></small> | 
+                            <small class="text-secondary">ASTM: <span id="target40" class="text-success fw-bold">--</span></small><br>
+                            <small class="text-secondary">Fresh Diel (Raw): <span id="targetDiel" class="text-warning fw-bold">--</span></small>
                         </div>
                     </div>
                 </div>
@@ -162,14 +68,79 @@
         </div>
     </div>
 
-    <div class="mt-5 pt-5 no-print">
-        <div class="bg-dark p-2 rounded-top border text-secondary small fw-bold">RAW DATA BROADCAST</div>
-        <div id="debugLog" class="debug-window">STANDBY...</div>
+    <div class="row justify-content-center g-4 text-center no-print">
+        <div class="col-12 col-lg-10">
+            <div class="status-card mb-4">
+                <h2 class="display-3 fw-bold" id="mainState">IDLE</h2>
+                <div class="d-flex justify-content-center gap-2 mt-4">
+                    <input type="text" id="espIp" class="form-control w-25" placeholder="ESP IP" value="192.168.1.1">
+                    <button class="btn btn-outline-success px-4" onclick="initConnect()">CONNECT</button>
+                    <button class="btn btn-warning px-4" onclick="sendCommand('prepare')">PREPARE</button>
+                    <button class="btn btn-info px-4" onclick="sendCommand('flush')">FLUSH</button>
+                    <button class="btn btn-restart px-4" onclick="restartTest()">RESTART</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4"><div class="status-card"><h6>TEMP</h6><div class="value-display h2" id="ui-tempA">--.-°C</div></div></div>
+        <div class="col-md-4"><div class="status-card"><h6>RAW DIEL</h6><div class="value-display h2" id="ui-diel">----</div></div></div>
+        <div class="col-md-4"><div class="status-card"><h6>TIME (ms)</h6><div class="value-display h2" id="ui-timeA">0000</div></div></div>
     </div>
+
+    <div class="row justify-content-center mt-4 no-print">
+        <div class="col-12 col-lg-10">
+            <div class="status-card border-secondary">
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <small class="text-secondary fw-bold">CALC. VISCOSITY</small>
+                        <div id="calc-visc" class="h3 value-display">-- cSt</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-secondary fw-bold">RELATIVE DIEL (&epsilon;<sub>r</sub>)</small>
+                        <div id="calc-rel-diel" class="h3 text-info fw-bold">--</div>
+                    </div>
+                </div>
+                <div class="px-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small class="fw-bold text-secondary">DEGRADATION SCALE</small>
+                        <small id="healthLabel" class="fw-bold">AWAITING TEST...</small>
+                    </div>
+                    <div class="progress"><div id="healthBar" class="progress-bar" style="width: 0%; transition: 0.6s;"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center mt-4 no-print">
+        <div class="col-12 col-lg-10 text-center">
+            <input type="text" id="plateNumber" class="form-control mb-2" placeholder="ENTER PLATE NUMBER">
+            <button class="btn btn-generate w-100 py-3" onclick="generateReport()">GENERATE FINAL REPORT</button>
+        </div>
+    </div>
+
+    <div id="reportSection" class="row justify-content-center mt-5 d-none">
+        <div class="col-12 col-lg-10">
+            <div class="status-card bg-black border-success p-5" style="border: 2px solid #00e676 !important;">
+                <h2 class="text-success text-center fw-bold">VISCOPULSE ANALYSIS REPORT</h2>
+                <hr class="border-secondary">
+                <table class="table table-dark table-bordered">
+                    <tbody>
+                        <tr><td>Date/Time</td><td id="rep-date">--</td></tr>
+                        <tr><td>Vehicle Plate</td><td id="rep-plate">--</td></tr>
+                        <tr><td>Oil Grade</td><td id="rep-grade">--</td></tr>
+                        <tr><td>ASTM Target (40C)</td><td id="rep-ref">--</td></tr>
+                        <tr><td>Dielectric Property</td><td id="rep-diel-m">--</td></tr>
+                        <tr><td>Final Viscosity</td><td><h4 id="rep-v40-cst" class="text-success fw-bold">--</h4></td></tr>
+                    </tbody>
+                </table>
+                <div class="text-center no-print"><button class="btn btn-outline-success px-5" onclick="window.print()">PRINT REPORT</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 no-print"><div id="debugLog" class="debug-window">SYSTEM READY.</div></div>
 </div>
 
 <script src="oil_db.js"></script>
 <script src="script.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
