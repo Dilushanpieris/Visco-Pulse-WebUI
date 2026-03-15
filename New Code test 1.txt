@@ -1,0 +1,69 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// --- Pin Definitions ---
+const int SEND_PIN = 22;      // Dielectric Send
+const int RECEIVE_PIN = 23;   // Dielectric Receive (to Plate)
+const int TEMP_A_PIN = 4;     // Chamber A Temp (Needs 3.3k Pull-up)
+const int TEMP_B_PIN = 18;    // Chamber B Temp (Needs 3.3k Pull-up)
+
+// --- Sensor Objects (Independent Buses) ---
+OneWire oneWireA(TEMP_A_PIN);
+DallasTemperature sensorsA(&oneWireA);
+
+OneWire oneWireB(TEMP_B_PIN);
+DallasTemperature sensorsB(&oneWireB);
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Start both buses
+  sensorsA.begin();
+  sensorsB.begin();
+  
+  pinMode(SEND_PIN, OUTPUT);
+  pinMode(RECEIVE_PIN, INPUT);
+  
+  Serial.println("{\"log\":\"Dual-Bus System Initialized\"}");
+}
+
+// Library-free dielectric logic
+long readDielectric(int samples) {
+  long total = 0;
+  for (int i = 0; i < samples; i++) {
+    pinMode(RECEIVE_PIN, OUTPUT);
+    digitalWrite(RECEIVE_PIN, LOW);
+    digitalWrite(SEND_PIN, LOW);
+    delayMicroseconds(10);
+    pinMode(RECEIVE_PIN, INPUT);
+
+    long start = micros();
+    digitalWrite(SEND_PIN, HIGH);
+    while (digitalRead(RECEIVE_PIN) == LOW && (micros() - start < 30000));
+    total += (micros() - start);
+  }
+  return total / samples;
+}
+
+void loop() {
+  // 1. Request Temperatures from each bus
+  sensorsA.requestTemperatures();
+  sensorsB.requestTemperatures();
+  
+  float tempValA = sensorsA.getTempCByIndex(0);
+  float tempValB = sensorsB.getTempCByIndex(0); // Index 0 on its own bus
+
+  // 2. Read Dielectric
+  long dielRaw = readDielectric(30);
+
+  // 3. JSON Output for Web UI
+  Serial.print("{\"status\":0,\"tempA\":");
+  Serial.print(tempValA, 1);
+  Serial.print(",\"tempB\":");
+  Serial.print(tempValB, 1);
+  Serial.print(",\"diel\":");
+  Serial.print(dielRaw);
+  Serial.println(",\"tA\":0,\"tB\":0}");
+
+  delay(500); 
+}

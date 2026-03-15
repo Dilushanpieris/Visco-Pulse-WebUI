@@ -1,75 +1,41 @@
 /**
- * VISCOPULSE | Smart Test Tool
- * Master Logic Script - Reporting Edition
+ * VISCOPULSE MASTER SCRIPT | B.Eng (Hons) Integrated
  */
-
 let socket = null;
 let reconnectTimer = null;
-const statusMap = ["IDLE", "HEATING", "READY", "TESTING", "FINISHED"];
+const statusMap = ["IDLE", "HEATING", "READY", "TESTING", "FINISHED", "FLUSHING", "ERROR"];
 
-// --- 1. CONNECTION & INDICATOR LOGIC ---
-
-function setStatusIndicator(isConnected, message = "") {
+function setStatusIndicator(isConnected) {
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');
     if (isConnected) {
         dot.className = "dot dot-online";
-        text.innerText = message || "DEVICE CONNECTED";
+        text.innerText = "DEVICE CONNECTED";
     } else {
         dot.className = "dot dot-offline";
-        text.innerText = message || "DEVICE DISCONNECTED";
+        text.innerText = "DEVICE DISCONNECTED";
     }
 }
 
 function initConnect() {
-    const ipField = document.getElementById('espIp');
-    const ip = ipField.value.trim();
-    if (!ip) return alert("Enter ESP32 IP");
-
-    if (socket) {
-        socket.onopen = null; socket.onclose = null;
-        socket.onmessage = null; socket.close();
-    }
+    const ip = document.getElementById('espIp').value.trim();
+    if (!ip) return;
+    if (socket) socket.close();
     
     socket = new WebSocket(`ws://${ip}/ws`);
-
-    socket.onopen = () => {
-        clearInterval(reconnectTimer);
-        reconnectTimer = null;
-        setStatusIndicator(true);
-        logDebug("Hardware Link Established.");
-    };
-
-    socket.onclose = () => {
-        setStatusIndicator(false, "LINK LOST - RETRYING...");
-        if (!reconnectTimer) {
-            reconnectTimer = setInterval(() => initConnect(), 2000);
-        }
-    };
-
-    socket.onmessage = (event) => {
-        const dot = document.getElementById('statusDot');
-        if (dot.classList.contains('dot-offline')) setStatusIndicator(true);
-        try {
-            const data = JSON.parse(event.data);
-            updateUI(data);
-        } catch (e) { console.error("JSON Error"); }
+    socket.onopen = () => { setStatusIndicator(true); logDebug("Link Active."); };
+    socket.onclose = () => { setStatusIndicator(false); if (!reconnectTimer) reconnectTimer = setInterval(initConnect, 3000); };
+    socket.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        document.getElementById('mainState').innerText = statusMap[data.status];
+        document.getElementById('mainState').style.color = (data.status === 2) ? "#00e676" : "#fff";
+        document.getElementById('ui-tempA').innerText = data.tempA.toFixed(1) + "°C";
+        document.getElementById('ui-diel').innerText = data.diel;
+        document.getElementById('ui-timeA').innerText = data.tA;
     };
 }
 
-// --- 2. DATA PROCESSING ---
-
-function updateUI(data) {
-    const stateLabel = document.getElementById('mainState');
-    stateLabel.innerText = statusMap[data.status] || "UNKNOWN";
-    stateLabel.style.color = (data.status === 2) ? "#00e676" : (data.status === 1) ? "#ff9100" : "#ffffff";
-
-    document.getElementById('ui-tempA').innerText = data.tempA.toFixed(1) + "°C";
-    document.getElementById('ui-tempB').innerText = data.tempB.toFixed(1) + "°C";
-    document.getElementById('ui-diel').innerText = data.diel;
-    document.getElementById('ui-timeA').innerText = data.tA;
-    document.getElementById('ui-timeB').innerText = data.tB;
-}
+function sendCommand(cmd) { if (socket && socket.readyState === 1) socket.send(cmd); }
 
 function updateASTM() {
     const brand = document.getElementById('oilBrand').value;
@@ -77,73 +43,43 @@ function updateASTM() {
     if (VISCOPULSE_CONFIG.brands[brand] && VISCOPULSE_CONFIG.brands[brand][grade]) {
         const d = VISCOPULSE_CONFIG.brands[brand][grade];
         document.getElementById('target40').innerText = d.v40.toFixed(1) + " cSt";
-        document.getElementById('target100').innerText = d.v100.toFixed(1) + " cSt";
-        document.getElementById('targetDiel').innerText = d.diel_fresh;
+        document.getElementById('targetDiel').innerText = d.diel_fresh_raw;
         document.getElementById('constA').innerText = VISCOPULSE_CONFIG.constants.chamber_A_K;
-        document.getElementById('constB').innerText = VISCOPULSE_CONFIG.constants.chamber_B_K;
     }
 }
-
-// --- 3. MATH & REPORTING ---
 
 function generateReport() {
     const plate = document.getElementById('plateNumber').value.trim();
     const brand = document.getElementById('oilBrand').value;
     const grade = document.getElementById('oilGrade').value;
+    if (!plate || brand === "none") return alert("Missing Vehicle/Oil Info.");
 
-    if (!plate || brand === "none" || grade === "none") {
-        alert("Complete Vehicle Info and Test Selection first.");
-        return;
-    }
-
-    // Capture Data
-    const tA = parseFloat(document.getElementById('ui-timeA').innerText) / 1000; // Convert ms to s
-    const tB = parseFloat(document.getElementById('ui-timeB').innerText) / 1000;
+    // 1. Viscosity Calculation
+    const tA_ms = parseFloat(document.getElementById('ui-timeA').innerText);
+    const tA_sec = tA_ms / 1000;
     const kA = VISCOPULSE_CONFIG.constants.chamber_A_K;
-    const kB = VISCOPULSE_CONFIG.constants.chamber_B_K;
+    const viscMeasured = kA * tA_sec;
 
-    // Kinematic Viscosity Calculation: V = K * t
-    const viscA_cst = kA * tA; 
-    const viscB_cst = kB * tB;
-    const viscA_si = viscA_cst * 1e-6; // cSt to m^2/s
-    const viscB_si = viscB_cst * 1e-6;
+    // 2. Relative Dielectric Calculation (Er = C_oil / C_air)
+    const rawDielOil = parseFloat(document.getElementById('ui-diel').innerText);
+    const rawDielAir = VISCOPULSE_CONFIG.constants.diel_air_raw;
+    const relativeDiel = (rawDielOil / rawDielAir).toFixed(3);
 
-    // Update Report UI
+    // 3. Update Report UI
     document.getElementById('rep-date').innerText = new Date().toLocaleString();
     document.getElementById('rep-plate').innerText = plate;
     document.getElementById('rep-grade').innerText = brand.toUpperCase() + " " + grade.toUpperCase();
-    document.getElementById('rep-ref').innerText = document.getElementById('target40').innerText + " / " + document.getElementById('target100').innerText + " (ASTM D445)";
-    document.getElementById('rep-diel-ref').innerText = document.getElementById('targetDiel').innerText;
-    document.getElementById('rep-ka').innerText = kA;
-    document.getElementById('rep-kb').innerText = kB;
+    document.getElementById('rep-ref').innerText = document.getElementById('target40').innerText;
     
-    document.getElementById('rep-ta').innerText = document.getElementById('ui-timeA').innerText + " ms";
-    document.getElementById('rep-tb').innerText = document.getElementById('ui-timeB').innerText + " ms";
-    document.getElementById('rep-diel-m').innerText = document.getElementById('ui-diel').innerText;
-
-    document.getElementById('rep-v40-cst').innerText = viscA_cst.toFixed(3) + " cSt (mm²/s)";
-    document.getElementById('rep-v40-si').innerText = viscA_si.toExponential(4) + " m²/s";
-    document.getElementById('rep-v100-cst').innerText = viscB_cst.toFixed(3) + " cSt (mm²/s)";
-    document.getElementById('rep-v100-si').innerText = viscB_si.toExponential(4) + " m²/s";
+    // Displaying Relative Dielectric in the report
+    document.getElementById('rep-diel-m').innerHTML = `Raw: ${rawDielOil} | <b>&epsilon;<sub>r</sub>: ${relativeDiel}</b>`;
+    
+    document.getElementById('rep-v40-cst').innerText = viscMeasured.toFixed(3) + " cSt";
 
     document.getElementById('reportSection').classList.remove('d-none');
-    window.scrollTo(0, document.body.scrollHeight);
-    logDebug("Report Generated for " + plate);
 }
 
-function printReport() {
-    window.print();
-}
-
-function restartTest() {
-    if (socket && socket.readyState === WebSocket.OPEN) socket.send("restart");
-    document.getElementById('reportSection').classList.add('d-none');
-    document.getElementById('ui-timeA').innerText = "0000";
-    document.getElementById('ui-timeB').innerText = "0000";
-    document.getElementById('plateNumber').value = "";
-    document.getElementById('mainState').innerText = "IDLE";
-    logDebug("System Reset.");
-}
+function restartTest() { sendCommand('restart'); document.getElementById('reportSection').classList.add('d-none'); }
 
 function logDebug(msg) {
     const log = document.getElementById('debugLog');
