@@ -1,8 +1,3 @@
-/**
- * VISCOPULSE MASTER FIRMWARE - V4.2 FINAL
- * University of Sri Jayewardenepura | B.Eng (Hons)
- * FIXED: Interrupt shielding added to prevent WiFi interference with timing.
- */
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <OneWire.h>
@@ -10,7 +5,7 @@
 #include <ESP32Servo.h>
 
 // --- USER CONFIG ---
-const char* ssid = "DiluWRT_2.4G/5G_AX";
+const char* ssid = "DiluWRT_2.4G/5G";
 const char* password = "questpx443";
 
 // --- PIN MAP ---
@@ -94,7 +89,7 @@ void loop() {
     currentT = t;
   }
 
-  // 2. Dielectric Polling (Now Shielded)
+  // 2. Dielectric Polling
   liveDiel = readDielectric();
 
   // 3. State Machine Logic
@@ -168,8 +163,7 @@ void stopThermal() {
 }
 
 long readDielectric() {
-  // noInterrupts stops WiFi background tasks for a split second 
-  // so the timing loop is 100% accurate.
+
   noInterrupts(); 
   
   digitalWrite(PIN_SEND, LOW);
@@ -209,7 +203,6 @@ void broadcastData() {
   String json = "{";
   json += "\"status\":" + String(currentStatus) + ",";
   json += "\"tempA\":" + String(currentT) + ",";
-  // We use the last captured value or live value, no second function call
   json += "\"diel\":" + String(currentStatus == TESTING ? dielectricCaptured : liveDiel) + ",";
   json += "\"tA\":" + String(currentStatus == TESTING ? (millis()-testStartTime) : finalTime);
   json += "}";
