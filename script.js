@@ -1,9 +1,11 @@
 /**
- * VISCOPULSE MAIN CONTROL SCRIPT | V5.3
+ * VISCOPULSE MAIN CONTROL SCRIPT | V6.2
+ * FIXED: Report Generation Logic
  */
 let socket = null;
 let reconnectTimer = null;
 const statusMap = ["IDLE", "HEATING", "READY", "TESTING", "FINISHED", "FLUSHING", "ERROR"];
+let lockedDiel = 0; 
 
 function setStatusIndicator(isConnected) {
     const dot = document.getElementById('statusDot');
@@ -23,7 +25,7 @@ function initConnect() {
     if (socket) socket.close();
     
     socket = new WebSocket(`ws://${ip}/ws`);
-    socket.onopen = () => { setStatusIndicator(true); logDebug("Link Active."); };
+    socket.onopen = () => { setStatusIndicator(true); logDebug("System Ready."); };
     socket.onclose = () => { setStatusIndicator(false); if (!reconnectTimer) reconnectTimer = setInterval(initConnect, 3000); };
     
     socket.onmessage = (e) => {
@@ -33,7 +35,16 @@ function initConnect() {
         document.getElementById('ui-diel').innerText = data.diel;
         document.getElementById('ui-timeA').innerText = data.tA;
 
-        if (data.status >= 3) analyzeData(data);
+        // Capture Dielectric when testing starts (Status 3)
+        if (data.status === 3 && lockedDiel === 0) {
+            lockedDiel = data.diel;
+            logDebug("Sample Captured: " + lockedDiel);
+        }
+
+        // Only update bars when test is FINISHED (Status 4)
+        if (data.status === 4) {
+            analyzeData(data);
+        }
     };
 }
 
@@ -46,27 +57,42 @@ function analyzeData(data) {
     const kA = VISCOPULSE_CONFIG.constants.chamber_A_K;
     const airBase = VISCOPULSE_CONFIG.constants.diel_air_raw;
 
-    const measuredVisc = kA * (data.tA / 1000);
-    const deviation = ((measuredVisc - ref.v40) / ref.v40) * 100;
-    const relDiel = (data.diel / airBase).toFixed(4);
+    const currentVisc = kA * (data.tA / 1000);
+    const viscShift = ((currentVisc - ref.v40) / ref.v40) * 100;
 
-    document.getElementById('calc-visc').innerText = measuredVisc.toFixed(2) + " cSt";
-    document.getElementById('calc-rel-diel').innerText = relDiel;
+    const activeDiel = (lockedDiel > 0) ? lockedDiel : data.diel;
+    const currentRelDiel = (activeDiel / airBase).toFixed(4);
+    const dielShift = ((activeDiel - ref.diel_fresh_raw) / ref.diel_fresh_raw) * 100;
 
-    const bar = document.getElementById('healthBar');
-    const label = document.getElementById('healthLabel');
-    const absDev = Math.abs(deviation);
-    
-    let color = "#00e676"; 
-    let statusText = "OPTIMAL";
+    document.getElementById('calc-visc').innerText = currentVisc.toFixed(2) + " cSt";
+    document.getElementById('calc-rel-diel').innerText = currentRelDiel;
 
-    if (absDev > 10 && absDev <= 20) { color = "#ffeb3b"; statusText = "CAUTION"; }
-    else if (absDev > 20) { color = "#ff5252"; statusText = "CRITICAL"; }
+    updateScale('visc', viscShift, `${viscShift.toFixed(1)}% Shift`);
+    updateScale('diel', dielShift, `${dielShift.toFixed(1)}% Shift`);
+}
 
-    bar.style.width = Math.max(5, 100 - absDev) + "%";
+function updateScale(prefix, shift, labelText) {
+    const bar = document.getElementById(prefix + 'Bar');
+    const status = document.getElementById(prefix + 'Status');
+    const label = document.getElementById(prefix + 'Label');
+    const absShift = Math.abs(shift);
+
+    let color = "#00e676"; // GREEN
+    let desc = "GOOD";
+
+    if (absShift > 10 && absShift <= 20) {
+        color = "#ffeb3b"; // YELLOW
+        desc = "NEED CHECKING";
+    } else if (absShift > 20) {
+        color = "#ff5252"; // RED
+        desc = "CRITICAL / BAD";
+    }
+
+    bar.style.width = Math.min(100, absShift * 4) + "%";
     bar.style.backgroundColor = color;
-    label.innerText = `${statusText} (${deviation.toFixed(1)}% Shift)`;
-    label.style.color = color;
+    status.innerText = desc;
+    status.style.color = color;
+    label.innerText = labelText;
 }
 
 function updateASTM() {
@@ -84,23 +110,40 @@ function sendCommand(cmd) { if (socket && socket.readyState === 1) socket.send(c
 
 function generateReport() {
     const plate = document.getElementById('plateNumber').value.trim();
-    if (!plate) return alert("Enter Plate Number.");
-    
+    const brand = document.getElementById('oilBrand').value;
+    const grade = document.getElementById('oilGrade').value;
+
+    if (!plate || brand === "none") {
+        alert("Please enter Vehicle Plate and select Oil Brand/Grade.");
+        return;
+    }
+
+    // Get values directly from the display elements
+    const vM = document.getElementById('calc-visc').innerText;
+    const dM = document.getElementById('calc-rel-diel').innerText;
+
     document.getElementById('rep-date').innerText = new Date().toLocaleString();
     document.getElementById('rep-plate').innerText = plate;
-    document.getElementById('rep-grade').innerText = document.getElementById('oilBrand').value.toUpperCase() + " " + document.getElementById('oilGrade').value;
+    document.getElementById('rep-grade').innerText = brand.toUpperCase() + " " + grade.toUpperCase();
     document.getElementById('rep-ref').innerText = document.getElementById('target40').innerText;
-    document.getElementById('rep-diel-m').innerText = "Relative (Er): " + document.getElementById('calc-rel-diel').innerText;
-    document.getElementById('rep-v40-cst').innerText = document.getElementById('calc-visc').innerText;
+    document.getElementById('rep-diel-m').innerText = "Relative (Er): " + (dM === "--" ? "N/A" : dM);
+    document.getElementById('rep-v40-cst').innerText = (vM === "-- cSt" ? "Pending" : vM);
     
     document.getElementById('reportSection').classList.remove('d-none');
+    window.scrollTo(0, document.body.scrollHeight);
 }
 
 function restartTest() {
     sendCommand('restart');
+    lockedDiel = 0;
     document.getElementById('reportSection').classList.add('d-none');
-    document.getElementById('healthBar').style.width = "0%";
-    document.getElementById('healthLabel').innerText = "AWAITING TEST...";
+    ['visc', 'diel'].forEach(p => {
+        document.getElementById(p + 'Bar').style.width = "0%";
+        document.getElementById(p + 'Status').innerText = "WAITING";
+        document.getElementById(p + 'Label').innerText = "0% Shift";
+    });
+    document.getElementById('calc-visc').innerText = "-- cSt";
+    document.getElementById('calc-rel-diel').innerText = "--";
 }
 
 function logDebug(msg) {

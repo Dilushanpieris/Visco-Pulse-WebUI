@@ -1,16 +1,12 @@
-/**
- * VISCOPULSE DATABASE | V5.3 CALIBRATED
- * University of Sri Jayewardenepura | B.Eng (Hons)
- */
 const VISCOPULSE_CONFIG = {
     "constants": {
-        "chamber_A_K": 3.516,       // Calibrated with Caltex 15W-40
-        "diel_air_raw": 43,         // Measured Air baseline
+        "chamber_A_K": 3.516,       
+        "diel_air_raw": 43,         
         "visc_tolerance_pct": 15    
     },
     "brands": {
         "caltex": {
-            "20w50": { v40: 159.0, v100: 18.1, diel_fresh_raw: 49 }, // Added Calibrated Data
+            "20w50": { v40: 159.0, v100: 18.1, diel_fresh_raw: 49 },
             "15w40": { v40: 109.4, v100: 14.5, diel_fresh_raw: 49 },
             "0w20": { v40: 45.2, v100: 8.7, diel_fresh_raw: 48 },
             "5w30": { v40: 68.5, v100: 11.8, diel_fresh_raw: 49 }
