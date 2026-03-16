@@ -1,5 +1,5 @@
 /**
- * VISCOPULSE MAIN CONTROL SCRIPT | V5.1
+ * VISCOPULSE MAIN CONTROL SCRIPT | V5.3
  */
 let socket = null;
 let reconnectTimer = null;
@@ -33,7 +33,6 @@ function initConnect() {
         document.getElementById('ui-diel').innerText = data.diel;
         document.getElementById('ui-timeA').innerText = data.tA;
 
-        // Perform Real-Time Math
         if (data.status >= 3) analyzeData(data);
     };
 }
@@ -41,7 +40,7 @@ function initConnect() {
 function analyzeData(data) {
     const brand = document.getElementById('oilBrand').value;
     const grade = document.getElementById('oilGrade').value;
-    if (brand === "none") return;
+    if (brand === "none" || grade === "none") return;
 
     const ref = VISCOPULSE_CONFIG.brands[brand][grade];
     const kA = VISCOPULSE_CONFIG.constants.chamber_A_K;

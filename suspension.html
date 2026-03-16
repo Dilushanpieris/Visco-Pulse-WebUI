@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViscoPulse | Bluetooth Telemetry</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0a0a0a; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
+        .status-card { background: #151515; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .brand-title { letter-spacing: 4px; font-weight: 900; color: #fff; }
+        .value-display { font-size: 3rem; font-weight: bold; color: #00e676; line-height: 1; }
+        .gyro-val { color: #448aff; font-size: 2.5rem; }
+        .unit { font-size: 0.8rem; color: #666; letter-spacing: 2px; margin-top: 5px; }
+        #terminal { height: 200px; overflow-y: auto; background: #000; color: #00ff41; font-family: 'Courier New', monospace; font-size: 0.85rem; border-radius: 4px; padding: 15px; border: 1px solid #222; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; background: #ff5252; }
+        .dot-online { background: #00e676; box-shadow: 0 0 10px #00e676; }
+        
+        /* New styling for the analysis link */
+        .analysis-link {
+            text-decoration: none;
+            display: inline-block;
+            transition: 0.3s;
+        }
+        .analysis-link:hover { opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<div class="container py-4">
+    <div class="text-center mb-4">
+        <h2 class="brand-title">VISCOPULSE <span style="color:#00e676">FULL TELEMETRY</span></h2>
+        
+        <div class="mb-3">
+            <a href="analysis.html" class="btn btn-sm btn-outline-info px-4 analysis-link" style="border-radius: 20px; font-size: 0.75rem; letter-spacing: 1px;">
+                OPEN POST-PROCESSING ANALYSIS TOOL
+            </a>
+        </div>
+
+        <div class="d-flex justify-content-center align-items-center mb-3">
+            <div id="statusDot" class="dot"></div>
+            <small id="statusText" class="fw-bold text-secondary">DISCONNECTED</small>
+        </div>
+        
+        <div class="btn-group w-100 mb-4" style="max-width: 600px;">
+            <button id="btnConnect" class="btn btn-outline-success fw-bold" onclick="connectBLE()">CONNECT</button>
+            <button id="btnDisconnect" class="btn btn-outline-danger fw-bold" onclick="disconnectBLE()" disabled>DISCONNECT</button>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col-md-4">
+            <div class="status-card text-center">
+                <h6 class="text-secondary small">ACCEL X</h6>
+                <div id="valInstX" class="value-display">0.00</div>
+                <div class="unit">m/s²</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="status-card text-center">
+                <h6 class="text-secondary small">ACCEL Y</h6>
+                <div id="valInstY" class="value-display">0.00</div>
+                <div class="unit">m/s²</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="status-card text-center" style="border-color: #00e676;">
+                <h6 class="text-secondary small">ACCEL Z (VERTICAL)</h6>
+                <div id="valInstZ" class="value-display">0.00</div>
+                <div class="unit">m/s²</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="status-card text-center">
+                <h6 class="text-secondary small">ROLL (GX)</h6>
+                <div id="valGyroX" class="value-display gyro-val">0.0</div>
+                <div class="unit">deg/s</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="status-card text-center">
+                <h6 class="text-secondary small">PITCH (GY)</h6>
+                <div id="valGyroY" class="value-display gyro-val">0.0</div>
+                <div class="unit">deg/s</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="status-card text-center">
+                <h6 class="text-secondary small">YAW (GZ)</h6>
+                <div id="valGyroZ" class="value-display gyro-val">0.0</div>
+                <div class="unit">deg/s</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="status-card text-center">
+                <h6 class="text-secondary small">TEMP</h6>
+                <div id="valTemp" class="value-display" style="color: #ff9100;">--</div>
+                <div class="unit">°C</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="terminal">STANDBY: Connect to ESP32 to begin...</div>
+
+    <div class="mt-4">
+        <button id="recordBtn" class="btn btn-outline-success w-100 py-3 fw-bold" onclick="toggleRecording()" disabled>START DATA LOGGING</button>
+    </div>
+
+    <div id="saveSection" class="status-card mt-3" style="display: none; border-color: #00e676;">
+        <div class="input-group">
+            <input type="text" id="vehNum" class="form-control bg-dark text-white" placeholder="Vehicle ID / Run Name">
+            <button class="btn btn-success" onclick="downloadCSV()">SAVE CSV REPORT</button>
+        </div>
+    </div>
+</div>
+
+<script src="suspension.js"></script>
+</body>
+</html>
